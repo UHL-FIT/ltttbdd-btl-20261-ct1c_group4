@@ -82,6 +82,7 @@ fun BuildScreen(
     var showItemPicker by remember { mutableStateOf(false) }
     var showMovePickerIndex by remember { mutableStateOf<Int?>(null) }
     var showAbilityPicker by remember { mutableStateOf(false) }
+    var showTeamListDialog by remember { mutableStateOf(false) }
 
     val currentSlot = team[activeSlotIndex]
 
@@ -107,14 +108,34 @@ fun BuildScreen(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                val savedTeams by buildViewModel.savedTeams.collectAsState()
+                if (savedTeams.isNotEmpty()) {
+                    Button(
+                        onClick = { showTeamListDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00B0FF).copy(alpha = 0.2f)),
+                        border = BorderStroke(1.dp, Color(0xFF00B0FF)),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Text("MY TEAMS", color = Color(0xFF00B0FF), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "TEAM BUILD",
-                color = Color.White,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Black
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "TEAM BUILD",
+                    color = Color.White,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                IconButton(onClick = { buildViewModel.createNewTeam() }) {
+                    Icon(Icons.Default.Refresh, "Reset", tint = Color.Gray)
+                }
+            }
             val currentEditingName by buildViewModel.currentEditingTeamName.collectAsState()
             if (currentEditingName != null) {
                 Text(
@@ -315,11 +336,106 @@ fun BuildScreen(
             filterPredicate = { ability, query -> ability.name.contains(query, true) }
         )
     }
+
+    if (showMovePickerIndex != null) {
+        MovePicker(
+            pokemon = currentSlot.pokemon,
+            selectedMoves = currentSlot.selectedMoves,
+            onDismiss = { showMovePickerIndex = null },
+            onSelect = { move ->
+                buildViewModel.updateMoveInActiveSlot(showMovePickerIndex!!, move)
+                showMovePickerIndex = null
+            }
+        )
+    }
+
+    if (showTeamListDialog) {
+        TeamSelectionDialog(
+            viewModel = buildViewModel,
+            onDismiss = { showTeamListDialog = false }
+        )
+    }
+}
+
+@Composable
+fun TeamSelectionDialog(
+    viewModel: BuildViewModel,
+    onDismiss: () -> Unit
+) {
+    val savedTeams by viewModel.savedTeams.collectAsState()
+    val context = LocalContext.current
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.7f),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E26)),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, Color(0xFF32323E))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("My Teams", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null, tint = Color.Gray) }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (savedTeams.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No saved teams found.", color = Color.Gray)
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(savedTeams.toList()) { (name, slots) ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable { viewModel.loadTeam(context, name); onDismiss() },
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF2A2A32)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(name, color = Color(0xFF00B0FF), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row {
+                                            slots.forEach { slot ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .background(Color(0xFF1E1E26), CircleShape)
+                                                        .border(0.5.dp, Color.Gray, CircleShape),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    if (slot.pokemon != null) {
+                                                        AsyncImage(model = slot.pokemon.imageUrl, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.width(2.dp))
+                                            }
+                                        }
+                                    }
+                                    IconButton(onClick = { viewModel.deleteTeam(context, name) }) {
+                                        Icon(Icons.Default.Delete, null, tint = Color.Red.copy(alpha = 0.6f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
 fun MovePicker(
     pokemon: com.example.pokedex.model.Pokemon?,
+    selectedMoves: List<com.example.pokedex.model.MoveInfo?>,
     onDismiss: () -> Unit,
     onSelect: (com.example.pokedex.model.MoveInfo) -> Unit
 ) {
@@ -386,12 +502,14 @@ fun MovePicker(
 
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     items(filteredMoves) { move ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelect(move) }
-                                .padding(vertical = 12.dp, horizontal = 4.dp)
-                        ) {
+                    val isSelected = selectedMoves.any { it?.name == move.name }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(if (isSelected) Color(0xFF00B0FF).copy(alpha = 0.1f) else Color.Transparent)
+                            .clickable { onSelect(move) }
+                            .padding(vertical = 12.dp, horizontal = 4.dp)
+                    ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     modifier = Modifier

@@ -1,20 +1,19 @@
 package com.example.pokedex.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
+import com.example.pokedex.ui.screens.BuildScreen
 import com.example.pokedex.ui.screens.GuideScreen
 import com.example.pokedex.ui.screens.HomeScreen
-import com.example.pokedex.ui.screens.PokemonScreen
-import com.example.pokedex.ui.screens.BuildScreen
-import com.example.pokedex.ui.screens.TierScreen
-
-import androidx.navigation.NavType
-import androidx.navigation.navArgument
 import com.example.pokedex.ui.screens.PokemonDetailScreen
+import com.example.pokedex.ui.screens.PokemonScreen
 import com.example.pokedex.ui.screens.PokemonViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.pokedex.ui.screens.TierScreen
 
 @Composable
 fun PokedexNavGraph(navController: NavHostController) {
@@ -40,7 +39,7 @@ fun PokedexNavGraph(navController: NavHostController) {
             BuildScreen(navController = navController)
         }
         composable("tier_route") {
-            TierScreen(navController = navController)
+            TierScreen(navController = navController, viewModel = pokemonViewModel)
         }
         composable("guide_route") {
             GuideScreen(navController = navController)

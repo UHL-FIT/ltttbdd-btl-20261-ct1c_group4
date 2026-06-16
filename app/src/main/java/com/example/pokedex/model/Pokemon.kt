@@ -36,9 +36,9 @@ data class Pokemon(
 ) {
     val total: Int get() = hp + attack + defense + spAtk + spDef + speed
 
-    // Cache names to avoid repeated substring operations
-    val baseName: String by lazy {
-        name.substringBefore(" Mega").substringBefore(" Alola")
+    // Computed properties to avoid serialization issues with lazy delegates
+    val baseName: String 
+        get() = name.substringBefore(" Mega").substringBefore(" Alola")
             .substringBefore(" Galar").substringBefore(" Hisui")
             .substringBefore(" Paldea").substringBefore(" Black")
             .substringBefore(" White").substringBefore(" Dusk")
@@ -47,11 +47,9 @@ data class Pokemon(
             .substringBefore(" Crowned").substringBefore(" Ice")
             .substringBefore(" Shadow").substringBefore(" Therian")
             .substringBefore(" Unbound").substringBefore(" Complete")
-    }
 
-    val variantName: String by lazy {
-        if (name.contains(baseName)) name.substringAfter(baseName).trim() else ""
-    }
+    val variantName: String 
+        get() = if (name.contains(baseName)) name.substringAfter(baseName).trim() else ""
     
     // Hiển thị ID gốc (bỏ phần thập phân nếu có)
     val formattedId: String 

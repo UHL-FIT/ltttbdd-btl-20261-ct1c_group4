@@ -14,6 +14,7 @@ import com.example.pokedex.model.PokemonSummary
 import com.google.gson.Gson
 import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -107,17 +108,48 @@ class BuildViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
-            repository.getAllPokemonSummaryFromDb().collectLatest { list: List<PokemonSummary> -> _allPokemon.value = list }
+            repository.getAllPokemonSummaryFromDb().collectLatest { list -> 
+                _allPokemon.value = list 
+            }
         }
+        
+        // Luôn đảm bảo có Item
+        refreshItems()
+
         viewModelScope.launch {
-            repository.getAllItemsFromDb().collectLatest { list: List<Item> ->
-                // Lọc các item có thể cầm theo (bao gồm Held Items và Berries)
-                _allItems.value = list.filter { 
-                    it.category == "Held Items" || it.category == "Berries" 
+            repository.getAllItemsFromDb().collectLatest { list ->
+                if (list.isEmpty()) {
+                    refreshItems()
+                    return@collectLatest
                 }
+                // Lọc thoáng hơn để đảm bảo hiển thị
+                _allItems.value = list.filter { item ->
+                    val cat = item.category.lowercase()
+                    // Bao gồm hầu hết các category liên quan đến chiến đấu
+                    cat.contains("held") || cat.contains("berry") || cat.contains("choice") ||
+                    cat.contains("scarf") || cat.contains("band") || cat.contains("specs") ||
+                    cat.contains("plate") || cat.contains("orb") || cat.contains("mega") ||
+                    cat.contains("stone") || cat.contains("item") || cat.isEmpty()
+                }.sortedBy { it.name }
             }
         }
         loadSavedTeams()
+    }
+
+    fun refreshItems() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val count = repository.getItemCount()
+                if (count < 50) {
+                    repository.fetchAndCacheItems(limit = 100, offset = 0)
+                    repository.fetchAndCacheItems(limit = 100, offset = 100)
+                    repository.fetchAndCacheItems(limit = 100, offset = 200)
+                    repository.fetchAndCacheItems(limit = 100, offset = 300)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     private fun loadSavedTeams() {
@@ -126,21 +158,17 @@ class BuildViewModel(application: Application) : AndroidViewModel(application) {
         val existingTeamsJson = sharedPrefs.getString("saved_teams", "{}")
         
         try {
-            // Check if we can parse it at all
             if (existingTeamsJson == null || existingTeamsJson == "{}") {
                 _savedTeams.value = emptyMap()
                 return
             }
 
-            // We need to be careful here because BuildSlot contains Pokemon, which has abilities: List<AbilityInfo>
-            // If the JSON in SharedPreferences has abilities: List<String>, Gson might fail deep inside
             val type = object : TypeToken<Map<String, List<BuildSlot>>>() {}.type
             val teams: Map<String, List<BuildSlot>>? = gson.fromJson(existingTeamsJson, type)
             _savedTeams.value = teams ?: emptyMap()
         } catch (e: Exception) {
-            // catch all exceptions during deserialization
-            // Clear corrupted data
-            sharedPrefs.edit().remove("saved_teams").apply()
+            // Không xóa dữ liệu nếu chỉ là lỗi parse tạm thời
+            e.printStackTrace()
             _savedTeams.value = emptyMap()
         }
     }
@@ -174,7 +202,9 @@ class BuildViewModel(application: Application) : AndroidViewModel(application) {
                     
                     // Trùng trong chuỗi tiến hóa
                     val newEvolutionIds = pokemon.evolutionChain.map { it.id }.toSet()
-                    newEvolutionIds.contains(existingBaseId)
+                    val existingEvolutionIds = existingPokemon.evolutionChain.map { it.id }.toSet()
+                    
+                    newEvolutionIds.contains(existingBaseId) || existingEvolutionIds.contains(newBaseId)
                 }
 
                 if (hasConflict) {

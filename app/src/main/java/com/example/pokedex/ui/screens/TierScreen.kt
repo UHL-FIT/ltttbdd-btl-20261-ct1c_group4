@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -311,7 +312,6 @@ fun MetaLineHeader(title: String, color: Color) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TierRowGrid(
     tier: String,

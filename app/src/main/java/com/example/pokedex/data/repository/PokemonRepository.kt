@@ -318,6 +318,8 @@ class PokemonRepository(context: Context) {
         pokemonDao.deletePokemonAboveId(1025.9)
     }
 
+    suspend fun getItemCount(): Int = itemDao.getCount()
+
     // ITEM METHODS
     fun getAllItemsFromDb(): Flow<List<com.example.pokedex.model.Item>> = itemDao.getAllItems()
 
